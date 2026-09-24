@@ -248,7 +248,7 @@ body.revealed .scroll-cue{opacity:1}
 .film-media video{width:100%;height:100%;object-fit:cover;transform:scale(1.25);will-change:transform}
 .film-caption{position:absolute;z-index:3;bottom:12vh;left:0;right:0;text-align:center;color:#fff;opacity:0;
   font-family:var(--script);font-size:clamp(2.4rem,6vw,4.6rem);text-shadow:0 4px 24px rgba(0,0,0,.5);will-change:opacity,transform}
-.masonry{columns:3 300px;column-gap:22px;max-width:1240px;margin:0 auto;padding:clamp(70px,10vh,120px) 22px 120px}
+.masonry{columns:3 300px;column-gap:22px;max-width:1240px;margin:0 auto;padding:clamp(70px,10vh,120px) 22px 40px}
 .m-item{position:relative;break-inside:avoid;margin:0 0 22px;overflow:hidden;cursor:zoom-in;background:none}
 .m-item img{width:100%;height:auto;clip-path:inset(100% 0 0 0);transform:scale(1.35);
   transition:clip-path 1.3s var(--ease-out),transform 1.8s var(--ease-out),filter .6s}
@@ -271,8 +271,8 @@ body.revealed .scroll-cue{opacity:1}
 /* ============================================================
    PAGE 5 — VENUE  (curtain reveal + map + RSVP)
    ============================================================ */
-.venue{position:relative;background:var(--paper);overflow:hidden}
-.curtain-zone{position:relative;height:200vh}
+.venue{position:relative;background:var(--paper)}
+.curtain-zone{position:relative;height:150vh}
 .curtain-sticky{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;display:grid;place-items:center}
 .curtain-bg{position:absolute;inset:0}
 .curtain-bg img{width:100%;height:100%;object-fit:cover;transform:scale(1.2);will-change:transform}
@@ -634,11 +634,8 @@ body.revealed .music-btn{opacity:1;transform:none;pointer-events:auto}
 </section>
 </main>
 
-<!-- Background music: put your song at media/music.mp3 (the online track below is only a sample fallback) -->
-<audio id="bgm" loop preload="auto">
-  <source src="media/music.mp3" type="audio/mpeg">
-  <source src="https://assets.mixkit.co/music/493/493.mp3" type="audio/mpeg">
-</audio>
+<!-- Background music: put your song at media/music.mp3 (see MUSIC_LOCAL / MUSIC_SAMPLE in the script) -->
+<audio id="bgm" loop preload="auto" playsinline></audio>
 <button class="music-btn" id="musicBtn" aria-label="Play music" aria-pressed="false">
   <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
   <span class="slash" aria-hidden="true"></span>
@@ -676,7 +673,21 @@ body.revealed .music-btn{opacity:1;transform:none;pointer-events:auto}
 
   /* ---------- background music ---------- */
   const MUSIC_VOLUME = 0.6;
+  const MUSIC_LOCAL = 'media/music.mp3';
+  const MUSIC_SAMPLE = 'https://assets.mixkit.co/music/493/493.mp3'; // used until media/music.mp3 exists
   const bgm = $('#bgm'), musicBtn = $('#musicBtn');
+  // Safari gets stuck on a missing <source> instead of falling back, so pick the file up front.
+  const useSrc = src => { if (!bgm.src.endsWith(src)) { bgm.src = src; bgm.load(); } };
+  if (location.protocol.startsWith('http')) {
+    useSrc(MUSIC_SAMPLE);
+    fetch(MUSIC_LOCAL, { method: 'HEAD', cache: 'no-store' })
+      .then(r => { if (r.ok && /audio|mpeg|octet/.test(r.headers.get('content-type') || '') && bgm.paused) useSrc(MUSIC_LOCAL); })
+      .catch(() => {});
+  } else {
+    // opened as a local file: try the local song, fall back if it isn't there
+    bgm.addEventListener('error', () => useSrc(MUSIC_SAMPLE), { once: true });
+    useSrc(MUSIC_LOCAL);
+  }
   let userMuted = false, fadeTimer;
   const setUi = on => {
     musicBtn.classList.toggle('playing', on);
@@ -852,12 +863,13 @@ body.revealed .music-btn{opacity:1;transform:none;pointer-events:auto}
 
     // Page 5: curtain opens
     {
-      const p = pinProgress(cz);
-      const e = clamp(p / .75);
+      // start opening as soon as the curtain is 40% into view, fully open by the time it pins
+      const r = cz.getBoundingClientRect();
+      const e = clamp((vh * .6 - r.top) / (vh * .75));
       const ease = e * e * (3 - 2 * e);
       pL.style.transform = `translateX(${-ease * 100}%) skewY(${ease * 3}deg) scaleX(${1 - ease * .3})`;
       pR.style.transform = `translateX(${ease * 100}%) skewY(${-ease * 3}deg) scaleX(${1 - ease * .3})`;
-      valance.style.transform = `translateY(${-clamp((p - .6) / .3) * 100}%)`;
+      valance.style.transform = `translateY(${-clamp((ease - .7) / .3) * 100}%)`;
       cImg.style.transform = `scale(${lerp(1.2, 1, ease)})`;
       cTitle.style.opacity = clamp((ease - .3) / .5);
       cTitle.style.transform = `scale(${lerp(.85, 1, ease)})`;
